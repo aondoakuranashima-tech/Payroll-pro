@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -33,7 +33,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-          cache-disabled: true
+          cache-disabled: false
 
       - name: Create CI debug keystore
         run: |
@@ -56,7 +56,7 @@ jobs:
           gradle --version
 
       - name: Build and unit test
-        run: gradle testDebugUnitTest assembleDebug --stacktrace --no-daemon --refresh-dependencies
+        run: gradle testDebugUnitTest assembleDebug --stacktrace --no-daemon
 
       - name: Upload debug APK
         if: success()
