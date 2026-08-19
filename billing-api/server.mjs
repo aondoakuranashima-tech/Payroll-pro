@@ -14,28 +14,21 @@ const CURRENCY_DECIMALS = { JPY: 0, KRW: 0, VND: 0, XOF: 0 };
 const fxCache = new Map();
 const quoteCacheMs = 5 * 60 * 1000;
 const PLANS = {
-  STARTER: { monthlyUsd: 99, discount: 1.5 },
-  BUSINESS: { monthlyUsd: 299, discount: 2.5 },
-  PRO: { monthlyUsd: 699, discount: 3.0 },
-  ENTERPRISE: { monthlyUsd: 1499, discount: 3.5 },
+  BASIC: { monthlyUsd: 99, discount: 1.5 },
+  PRO: { monthlyUsd: 299, discount: 2.5 },
+  BUSINESS: { monthlyUsd: 699, discount: 3.0 },
+  PREMIUM: { monthlyUsd: 1499, discount: 3.5 },
   ENTERPRISE_PLUS: { monthlyUsd: 2999, discount: 3.5 }
 };
 
 app.disable("x-powered-by");
 app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
 
-function requireSecret() {
-  if (!PAYSTACK_SECRET_KEY) throw new Error("PAYSTACK_SECRET_KEY is not configured");
-}
-function minorUnits(amount, currency) {
-  return Math.round(Number(amount) * (10 ** (CURRENCY_DECIMALS[currency] ?? 2)));
-}
+function requireSecret() { if (!PAYSTACK_SECRET_KEY) throw new Error("PAYSTACK_SECRET_KEY is not configured"); }
+function minorUnits(amount, currency) { return Math.round(Number(amount) * (10 ** (CURRENCY_DECIMALS[currency] ?? 2))); }
 async function paystack(path, options = {}) {
   requireSecret();
-  const response = await fetch(`https://api.paystack.co${path}`, {
-    ...options,
-    headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json", ...(options.headers || {}) }
-  });
+  const response = await fetch(`https://api.paystack.co${path}`, { ...options, headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json", ...(options.headers || {}) } });
   const data = await response.json();
   if (!response.ok || data.status === false) throw new Error(data.message || `Paystack request failed: ${response.status}`);
   return data;
@@ -53,8 +46,7 @@ async function getUsdRates() {
 async function convert(amount, from, to) {
   if (from === to) return Number(amount);
   const rates = await getUsdRates();
-  const fromRate = from === "USD" ? 1 : rates[from];
-  const toRate = to === "USD" ? 1 : rates[to];
+  const fromRate = from === "USD" ? 1 : rates[from]; const toRate = to === "USD" ? 1 : rates[to];
   if (!fromRate || !toRate) throw new Error(`FX rate unavailable for ${from}/${to}`);
   return Number(amount) * (toRate / fromRate);
 }
@@ -69,18 +61,10 @@ function verifyWebhook(req) {
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "payroll-pro-billing" }));
 app.get("/api/billing/plans", (_req, res) => {
-  const plans = Object.entries(PLANS).map(([code, p]) => ({
-    code, monthlyUsd: p.monthlyUsd, annualBeforeDiscountUsd: p.monthlyUsd * 12,
-    annualDiscountPercent: p.discount,
-    annualPriceUsd: Number((p.monthlyUsd * 12 * (1 - p.discount / 100)).toFixed(2)),
-    annualSavingsUsd: Number((p.monthlyUsd * 12 * p.discount / 100).toFixed(2))
-  }));
+  const plans = Object.entries(PLANS).map(([code, p]) => ({ code, monthlyUsd: p.monthlyUsd, annualBeforeDiscountUsd: p.monthlyUsd * 12, annualDiscountPercent: p.discount, annualPriceUsd: Number((p.monthlyUsd * 12 * (1 - p.discount / 100)).toFixed(2)), annualSavingsUsd: Number((p.monthlyUsd * 12 * p.discount / 100).toFixed(2)) }));
   res.json({ currency: "USD", plans });
 });
-app.get("/api/billing/currencies", (_req, res) => res.json({
-  displayCurrencies: ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CNY", "INR", "BRL", "ZAR", "KES", "GHS", "XOF"],
-  paystackCurrencies: [...PAYSTACK_CURRENCIES], defaultCurrency: DEFAULT_CURRENCY
-}));
+app.get("/api/billing/currencies", (_req, res) => res.json({ displayCurrencies: ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CNY", "INR", "BRL", "ZAR", "KES", "GHS", "XOF"], paystackCurrencies: [...PAYSTACK_CURRENCIES], defaultCurrency: DEFAULT_CURRENCY }));
 app.get("/api/billing/fx-quote", async (req, res) => {
   try {
     const amount = Number(req.query.amount); const from = String(req.query.from || "USD").toUpperCase(); const to = String(req.query.to || DEFAULT_CURRENCY).toUpperCase();
@@ -90,40 +74,31 @@ app.get("/api/billing/fx-quote", async (req, res) => {
     res.json({ from, to, inputAmount: amount, convertedAmount: Number(converted.toFixed(CURRENCY_DECIMALS[to] ?? 2)), paystackSubunitAmount: minorUnits(converted, to), quotedAt: new Date().toISOString(), expiresInSeconds: 300 });
   } catch (error) { res.status(503).json({ error: error.message }); }
 });
-
 app.post("/api/billing/initialize", async (req, res) => {
   try {
     const { email, planCode, billingCycle = "monthly", displayCurrency = "USD", paystackCurrency = DEFAULT_CURRENCY, metadata = {} } = req.body || {};
     const plan = PLANS[String(planCode || "").toUpperCase()];
     if (!email || !plan) return res.status(400).json({ error: "email and a valid planCode are required" });
     const cycle = String(billingCycle).toLowerCase();
-    if (cycle !== "monthly" && cycle !== "annual") return res.status(400).json({ error: "billingCycle must be monthly or annual" });
+    if (!["monthly", "annual"].includes(cycle)) return res.status(400).json({ error: "billingCycle must be monthly or annual" });
     const currency = String(paystackCurrency).toUpperCase();
     if (!PAYSTACK_CURRENCIES.has(currency)) return res.status(400).json({ error: `Unsupported Paystack currency: ${currency}` });
     const usdAmount = cycle === "annual" ? plan.monthlyUsd * 12 * (1 - plan.discount / 100) : plan.monthlyUsd;
     const converted = await convert(usdAmount, "USD", currency);
     const reference = safeReference("payrollpro");
-    const payload = {
-      email, amount: String(minorUnits(converted, currency)), currency, reference,
-      metadata: JSON.stringify({ product: "Payroll Pro", planCode: String(planCode).toUpperCase(), billingCycle: cycle, displayCurrency: String(displayCurrency).toUpperCase(), priceUsd: usdAmount, paystackCurrency: currency, fxQuotedAt: new Date().toISOString(), ...metadata })
-    };
-    if (cycle === "monthly" && metadata.paystackPlanCode) payload.plan = metadata.paystackPlanCode;
+    const payload = { email, amount: String(minorUnits(converted, currency)), currency, reference, metadata: JSON.stringify({ product: "Payroll Pro", planCode: String(planCode).toUpperCase(), billingCycle: cycle, displayCurrency: String(displayCurrency).toUpperCase(), priceUsd: usdAmount, paystackCurrency: currency, fxQuotedAt: new Date().toISOString(), ...metadata }) };
     if (CHECKOUT_CALLBACK_URL) payload.callback_url = CHECKOUT_CALLBACK_URL;
     const result = await paystack("/transaction/initialize", { method: "POST", body: JSON.stringify(payload) });
     res.json({ reference, authorizationUrl: result.data.authorization_url, accessCode: result.data.access_code, planCode: String(planCode).toUpperCase(), billingCycle: cycle, currency, usdAmount, amount: Number(converted.toFixed(CURRENCY_DECIMALS[currency] ?? 2)), subunitAmount: Number(payload.amount) });
   } catch (error) { res.status(502).json({ error: error.message }); }
 });
-
 app.get("/api/billing/verify/:reference", async (req, res) => {
-  try {
-    const result = await paystack(`/transaction/verify/${encodeURIComponent(req.params.reference)}`); const tx = result.data;
-    res.json({ reference: tx.reference, status: tx.status, amount: tx.amount, currency: tx.currency, paidAt: tx.paid_at, channel: tx.channel, customer: tx.customer?.email || null, verified: tx.status === "success" });
-  } catch (error) { res.status(502).json({ error: error.message, verified: false }); }
+  try { const result = await paystack(`/transaction/verify/${encodeURIComponent(req.params.reference)}`); const tx = result.data; res.json({ reference: tx.reference, status: tx.status, amount: tx.amount, currency: tx.currency, paidAt: tx.paid_at, channel: tx.channel, customer: tx.customer?.email || null, verified: tx.status === "success" }); }
+  catch (error) { res.status(502).json({ error: error.message, verified: false }); }
 });
 app.post("/api/billing/webhook", (req, res) => {
   if (!verifyWebhook(req)) return res.status(401).json({ error: "Invalid Paystack signature" });
-  const event = req.body || {};
-  if (event.event === "charge.success") console.log(JSON.stringify({ type: "PAYMENT_CONFIRMED", reference: event.data?.reference, receivedAt: new Date().toISOString() }));
+  if (req.body?.event === "charge.success") console.log(JSON.stringify({ type: "PAYMENT_CONFIRMED", reference: req.body.data?.reference, receivedAt: new Date().toISOString() }));
   res.sendStatus(200);
 });
 app.use((_req, res) => res.status(404).json({ error: "Not found" }));
