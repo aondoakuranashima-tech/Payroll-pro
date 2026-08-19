@@ -22,6 +22,7 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     buildConfigField("String", "SOFTWALL_API_BASE_URL", "\"${System.getenv("SOFTWALL_API_BASE_URL") ?: "https://softwall-payroll-api-v2.onrender.com/api"}\"")
+    buildConfigField("String", "PAYROLL_PRO_BILLING_BASE_URL", "\"${System.getenv("PAYROLL_PRO_BILLING_BASE_URL") ?: "https://payroll-pro-billing-api.onrender.com"}\"")
   }
 
   signingConfigs {
@@ -36,7 +37,7 @@ android {
       storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      keyPassword = "androiddebugkey"
     }
   }
 
