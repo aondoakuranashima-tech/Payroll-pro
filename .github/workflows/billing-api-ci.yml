@@ -31,11 +31,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Node.js and npm
-        run: |
-          node --version
-          npm --version
-          node -e "const major = Number(process.versions.node.split('.')[0]); if (major < 24) { console.error('Node.js 24+ is required'); process.exit(1) }"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: billing-api/package.json
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
