@@ -37,8 +37,10 @@ jobs:
 
       - name: Create CI debug keystore
         run: |
+          rm -f debug.keystore
           keytool -genkeypair \
             -keystore debug.keystore \
+            -storetype JKS \
             -storepass android \
             -keypass androiddebugkey \
             -alias androiddebugkey \
@@ -53,6 +55,7 @@ jobs:
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
           test -f debug.keystore
+          keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey
           gradle --version
 
       - name: Build and unit test
