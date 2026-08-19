@@ -1,18 +1,40 @@
+# Android / Gradle
 *.iml
-.gradle
-.kotlin
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+.gradle/
+.kotlin/
+/build/
+*/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Local Android/IDE files
 local.properties
+.idea/
+*.hprof
+.DS_Store
+Thumbs.db
+
+# Secrets / credentials
 .env
-debug.keystore
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+service-account*.json
+*google-services.json
+
+# Generated signing / Play artifacts
+*.aab
+*.apk
+*.apks
+*.zip
+
+# Logs / temporary files
+*.log
+*.tmp
+*.swp
