@@ -1,0 +1,7 @@
+{
+  "name": "Payroll Pro",
+  "description": "Enterprise payroll calculations, tax deductions, employee compensation, multi-currency cash flow forecasting, and accounting export suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
