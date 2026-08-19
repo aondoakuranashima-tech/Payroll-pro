@@ -1,0 +1,42 @@
+name: Payroll Pro Billing API CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'billing-api/**'
+      - '.github/workflows/billing-api-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'billing-api/**'
+      - '.github/workflows/billing-api-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-api-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: billing-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: billing-api/package-lock.json
+      - name: Install dependencies
+        run: npm install
+      - name: Syntax check
+        run: npm run check
