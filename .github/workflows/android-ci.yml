@@ -31,6 +31,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
       - name: Create CI debug keystore
         run: |
@@ -53,7 +55,7 @@ jobs:
           gradle --version
 
       - name: Build and unit test
-        run: gradle testDebugUnitTest assembleDebug --stacktrace --no-daemon
+        run: gradle testDebugUnitTest assembleDebug --stacktrace --no-daemon --refresh-dependencies
 
       - name: Upload debug APK
         if: success()
