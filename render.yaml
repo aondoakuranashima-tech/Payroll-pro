@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: payroll-pro-billing-api
+    runtime: node
+    rootDir: billing-api
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: PAYSTACK_CURRENCY
+        value: NGN
+      - key: PAYSTACK_CALLBACK_URL
+        sync: false
+      - key: FX_API_URL
+        value: https://open.er-api.com/v6/latest/USD
