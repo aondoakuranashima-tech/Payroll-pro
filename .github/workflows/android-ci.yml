@@ -32,10 +32,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Create CI debug keystore
+        run: |
+          keytool -genkeypair \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass androiddebugkey \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -noprompt
+
       - name: Verify Android project
         run: |
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
+          test -f debug.keystore
           gradle --version
 
       - name: Build and unit test
