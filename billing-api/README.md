@@ -1,41 +1,82 @@
 # Payroll Pro Billing API
 
-Standalone payment service for Payroll Pro. It does not depend on Softwall Payroll AI.
+Payroll Pro now has a provider-agnostic billing router for **Paystack, Flutterwave, Dodo Payments, Paddle, and PayPal**. Provider credentials stay server-side; the Android/web clients receive hosted checkout URLs only.
+
+## Architecture
+
+```text
+Payroll Pro client
+      |
+      v
+Softwall-style Billing Router
+      |
+      +--> Paystack
+      +--> Flutterwave
+      +--> Dodo Payments
+      +--> Paddle
+      +--> PayPal
+```
+
+The router selects a configured provider from country, currency, and requested payment method. A client can also explicitly request a provider.
 
 ## Endpoints
 
-- `GET /health`
+- `GET /health` — service + provider configuration status
+- `GET /api/billing/providers?country=NG&currency=NGN&method=card` — eligible configured providers
+- `GET /api/billing/plans`
 - `GET /api/billing/currencies`
-- `GET /api/billing/fx-quote?amount=49&from=USD&to=NGN`
-- `POST /api/billing/initialize`
-- `GET /api/billing/verify/:reference`
-- `POST /api/billing/webhook`
+- `GET /api/billing/fx-quote?amount=299&from=USD&to=NGN`
+- `POST /api/billing/checkout` — unified checkout creation
+- `POST /api/billing/initialize` — legacy Paystack-compatible entry point
+- `GET /api/billing/verify/:provider/:id` — provider verification where supported
+- `GET /api/billing/transaction/:reference` — transaction state
 
-## Android checkout flow
+Webhooks:
 
-1. Android calls `/api/billing/initialize` with email, plan amount, display currency and Paystack currency.
-2. The server converts the display amount and initializes a real Paystack transaction.
-3. Android opens the returned `authorizationUrl` using Paystack's hosted checkout.
-4. Android verifies the returned reference through `/api/billing/verify/:reference`.
-5. The backend independently verifies the transaction with Paystack.
-6. Paystack webhook events are independently authenticated with HMAC-SHA512.
-7. Subscription access must only be granted after a verified successful transaction/webhook is persisted idempotently.
+- `POST /api/billing/webhooks/paystack`
+- `POST /api/billing/webhooks/flutterwave`
+- `POST /api/billing/webhooks/dodo`
+- `POST /api/billing/webhooks/paddle`
+- `POST /api/billing/webhooks/paypal`
+
+## Provider behavior
+
+- **Paystack:** hosted checkout + server verification + HMAC-SHA512 webhook verification.
+- **Flutterwave:** hosted Standard checkout + reference verification + `verif-hash` webhook verification.
+- **Dodo Payments:** checkout session creation + checkout-session retrieval. Product IDs are configured in environment variables.
+- **Paddle:** transaction creation using a configured Paddle price ID and hosted checkout. Webhook signatures use Paddle's `ts:h1` signing scheme.
+- **PayPal:** Orders v2 checkout creation + server-side order verification. Capture/approval is completed through PayPal's hosted approval flow.
+
+Provider capabilities differ. The router therefore does not claim that every payment method works on every provider.
+
+## Customer payment methods
+
+The checkout can expose supported cards, bank payments, mobile money, USSD, wallets, Apple Pay/Google Pay, PayPal and other provider-supported local methods. **Gift cards are intentionally not supported.** The actual methods available are controlled by the selected provider, merchant account, country and currency.
 
 ## Security
 
-Paystack's secret key is server-side only. Never put it in the Android app. Paystack webhook requests are verified with HMAC-SHA512 before processing.
+- No secret key is sent to Android/web clients.
+- Paystack webhook signatures are verified with HMAC-SHA512.
+- Flutterwave webhook requests require the configured `verif-hash` secret.
+- Dodo/Paddle webhook verification is supported when their webhook secrets are configured.
+- Provider references are generated server-side.
+- Webhook event IDs are deduplicated in the current process.
+- Use HTTPS in production.
 
-## Global currency behavior
+## Important production limitation
 
-Payroll Pro can display prices in many customer currencies, then convert the price to a currency enabled on the merchant's Paystack account. The converted amount is calculated server-side and the quote is timestamped.
+The current connector implementation keeps transaction/webhook state in memory so the billing API remains dependency-light. **Before production, move `transactions` and `processedEvents` into Payroll Pro's PostgreSQL database with unique constraints and an outbox/queue.** Do not grant subscription access solely from a browser redirect; grant access only after a verified provider event/transaction is persisted idempotently.
 
-Paystack's supported currencies depend on the merchant's country and account configuration. This service therefore rejects currencies that are not in its configured Paystack set instead of pretending Paystack supports every world currency.
+## Environment
 
-## Production requirements
+Copy `.env.example` to the deployment secret manager. Never commit real credentials.
 
-1. Deploy `billing-api` as its own service.
-2. Set `PAYSTACK_SECRET_KEY` and `PAYSTACK_WEBHOOK_SECRET` in the deployment secret manager.
-3. Enable international payments/currencies in Paystack where eligible.
-4. Configure the Paystack dashboard webhook URL to `/api/billing/webhook`.
-5. Persist subscription and webhook state in Payroll Pro's database with idempotency before granting access.
-6. Replace the example FX provider with a production FX provider under a commercial/appropriate license if required.
+Paddle requires configured monthly/annual price IDs. Dodo requires a product ID. PayPal requires client credentials and production/sandbox base URL selection.
+
+## Local check
+
+```bash
+npm install
+npm run check
+npm start
+```
